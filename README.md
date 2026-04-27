@@ -1,61 +1,155 @@
-# 🎮 Game Glitch Investigator: The Impossible Guesser
+# 🎮 Game Glitch Investigator — Applied AI System
 
-## 🚨 The Situation
+A Streamlit app with two modes:
 
-You asked an AI to build a simple "Number Guessing Game" using Streamlit.
-It wrote the code, ran away, and now the game is unplayable. 
+1. **Play the Game** — a number-guessing game (Easy / Normal / Hard difficulty)
+2. **AI Glitch Detective** — describe a bug symptom; the AI diagnoses it using
+   Retrieval-Augmented Generation and rates its own confidence
 
-- You can't win.
-- The hints lie to you.
-- The secret number seems to have commitment issues.
+---
 
-## 🛠️ Setup
+## AI Features
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. Run the broken app: `python -m streamlit run app.py`
+| Feature | How it's used |
+|---|---|
+| **RAG** | TF-IDF retriever searches a 10-document bug-pattern knowledge base before Claude generates a diagnosis |
+| **Agentic loop** | 5-step pipeline: validate input → retrieve → diagnose → validate output → self-critique |
+| **Self-critique** | Claude rates its own confidence (0–100) and adds a caveat when below 60 |
+| **Guardrails** | Input and output are validated for length, blocked patterns, prompt injection, and topic relevance |
+| **Reliability testing** | 36 pytest tests cover guardrails, retriever ranking, agent contract, and a live API smoke test |
 
-## 🕵️‍♂️ Your Mission
+---
 
-1. **Play the game.** Open the "Developer Debug Info" tab in the app to see the secret number. Try to win.
-2. **Find the State Bug.** Why does the secret number change every time you click "Submit"? Ask ChatGPT: *"How do I keep a variable from resetting in Streamlit when I click a button?"*
-3. **Fix the Logic.** The hints ("Higher/Lower") are wrong. Fix them.
-4. **Refactor & Test.** - Move the logic into `logic_utils.py`.
-   - Run `pytest` in your terminal.
-   - Keep fixing until all tests pass!
+## Setup
 
-## 📝 Document Your Experience
+### 1. Install dependencies
 
-### Game Purpose
-A number-guessing game where the player picks a difficulty (Easy, Normal, or Hard), then tries to guess a randomly chosen secret number within that difficulty's range. After each guess, the game tells the player whether to go higher or lower. The player wins by guessing the number before running out of attempts.
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Set your Anthropic API key
+
+The AI Glitch Detective tab requires a Claude API key.
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+You can get a key at [console.anthropic.com](https://console.anthropic.com).
+
+The game tab works without an API key. The AI tab will show an error
+message if the key is missing.
+
+### 3. Run the app
+
+```bash
+python -m streamlit run app.py
+```
+
+### 4. Run the tests
+
+```bash
+pytest
+```
+
+All 35 offline tests pass without an API key. The live smoke test
+is automatically skipped when `ANTHROPIC_API_KEY` is not set.
+
+---
+
+## Project Structure
+
+```
+applied-ai-system-final/
+├── app.py                  # Streamlit UI (game tab + AI tab)
+├── agent.py                # Agentic diagnosis loop
+├── retriever.py            # TF-IDF RAG retriever
+├── guardrails.py           # Input/output validation and logging
+├── logic_utils.py          # Core game logic
+├── knowledge_base/
+│   └── bugs/               # 10 bug-pattern documents (RAG corpus)
+├── tests/
+│   ├── test_game_logic.py  # Original game logic tests
+│   └── test_agent.py       # Reliability suite for the AI pipeline
+├── assets/                 # Architecture diagrams and screenshots
+├── requirements.txt
+└── reflection.md
+```
+
+---
+
+## How the AI Glitch Detective Works
+
+```
+User describes a symptom
+        │
+        ▼
+┌─────────────────┐
+│   Guardrails    │  ← rejects off-topic, injections, blocked patterns
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Retriever     │  ← TF-IDF cosine search over knowledge_base/bugs/
+│  (top-3 docs)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Claude Haiku   │  ← diagnosis using retrieved context (RAG)
+│  (diagnosis)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Guardrails    │  ← filters AI output before showing to user
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Claude Haiku   │  ← self-critique: rates own confidence 0-100
+│ (self-critique) │
+└────────┬────────┘
+         │
+         ▼
+  Display diagnosis
+  + confidence badge
+  + sources used
+```
+
+---
+
+## Module 1 Bug Documentation
 
 ### Bugs Found
 
 | # | Bug | Where |
 |---|-----|--------|
-| 1 | Hint messages were reversed — "Go HIGHER!" when the guess was too high, "Go LOWER!" when too low | `app.py` → `check_guess` |
-| 2 | On every even-numbered attempt, the secret was silently cast to a `str`, causing lexicographic comparison (e.g. `50 > "9"` is `False`) and producing wrong hints | `app.py` submit block |
-| 3 | The info banner always said "1 to 100" regardless of difficulty | `app.py` `st.info` call |
-| 4 | Hard mode range (1–50) was smaller than Normal (1–100); ranges were effectively swapped | `app.py` → `get_range_for_difficulty` |
-| 5 | New Game button used hardcoded `random.randint(1, 100)` instead of the current difficulty's range | `app.py` new_game block |
-| 6 | All logic functions in `logic_utils.py` raised `NotImplementedError`, so `pytest` failed | `logic_utils.py` |
-| 7 | `attempts` was initialized to `1` instead of `0`, making the attempt counter off by one from the start | `app.py` session state init |
-| 8 | `update_score` added +5 points on even-numbered wrong guesses instead of always subtracting | `app.py` → `update_score` |
-| 9 | Switching difficulty mid-game kept the old secret number from the previous range | `app.py` — no difficulty-change detection |
-| 10 | Guesses outside the difficulty's range were accepted without error | `app.py` — no range validation |
+| 1 | Hint messages reversed — "Go HIGHER!" when guess was too high | `logic_utils.py` → `check_guess` |
+| 2 | Secret silently cast to `str` on even attempts, causing wrong lexicographic comparison | `app.py` submit block |
+| 3 | Info banner always showed "1 to 100" regardless of difficulty | `app.py` `st.info` call |
+| 4 | Hard mode range (1–50) was smaller than Normal (1–100); ranges swapped | `logic_utils.py` → `get_range_for_difficulty` |
+| 5 | New Game button used hardcoded `random.randint(1, 100)` | `app.py` new_game block |
+| 6 | All logic functions raised `NotImplementedError` | `logic_utils.py` |
+| 7 | `attempts` initialized to `1` instead of `0` | `app.py` session state init |
+| 8 | `update_score` added +5 on even-numbered wrong guesses | `logic_utils.py` → `update_score` |
+| 9 | Difficulty change mid-game kept old secret from previous range | `app.py` — no change detection |
+| 10 | Guesses outside the difficulty range were accepted | `app.py` — no range validation |
 
 ### Fixes Applied
 
-- **Reversed hints**: Swapped the return values in `check_guess` so `guess > secret` → "Go LOWER!" and `guess < secret` → "Go HIGHER!"
-- **String comparison bug**: Removed the even/odd secret-to-string conversion; `check_guess` now always compares two integers
-- **Hardcoded range label**: Updated `st.info` to use `{low}` and `{high}` from `get_range_for_difficulty`
-- **Wrong difficulty ranges**: Hard mode changed to 1–500 (largest range = hardest)
-- **New Game ignored difficulty**: Changed `random.randint(1, 100)` to `random.randint(low, high)`
-- **logic_utils.py**: Implemented all four functions (`get_range_for_difficulty`, `parse_guess`, `check_guess`, `update_score`) so `pytest` passes
-- **Attempts off-by-one**: Changed `attempts` initialization from `1` to `0`
-- **Unfair score bonus**: `update_score` now always subtracts 5 for any wrong guess
-- **Difficulty-change reset**: App now detects when difficulty changes in the sidebar and resets the game automatically
-- **Range validation**: Guesses outside `[low, high]` are rejected with an error and don't count as an attempt
+- Swapped `check_guess` return values so `guess > secret` → "Too High"
+- Removed even/odd secret-to-string conversion; always compare int to int
+- Updated `st.info` to use `{low}` and `{high}` from `get_range_for_difficulty`
+- Fixed difficulty ranges: Easy=1–20, Normal=1–100, Hard=1–500
+- Changed hardcoded `randint(1, 100)` to `randint(low, high)` everywhere
+- Implemented all four functions in `logic_utils.py`
+- Changed `attempts` init from `1` to `0`
+- `update_score` now always subtracts 5 for wrong guesses
+- Added difficulty-change detection with full session state reset
+- Added range validation before accepting a guess
 
-## 📸 Demo
+## Demo
 
-- ![Winning game screenshot](gamewin.png)
+![Winning game screenshot](gamewin.png)
