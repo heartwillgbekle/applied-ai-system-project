@@ -137,8 +137,6 @@ flowchart TD
     style TESTS fill:#f1f5f9,stroke:#64748b
 ```
 
-> **Tip:** GitHub renders this diagram automatically. To save it as a PNG, paste the code block into [mermaid.live](https://mermaid.live), export, and drop the file in `assets/`.
-
 ---
 
 ## Module 1 Bug Documentation
