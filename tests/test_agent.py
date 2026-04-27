@@ -100,8 +100,9 @@ class TestRetriever:
     def setup_method(self):
         self.retriever = BugPatternRetriever()
 
-    def test_loads_all_ten_documents(self):
-        assert len(self.retriever.docs) == 10
+    def test_loads_all_documents(self):
+        # 10 bug docs + 3 pattern docs = 13 total
+        assert len(self.retriever.docs) == 13
 
     def test_returns_results_for_known_symptom(self):
         results = self.retriever.retrieve("secret number changes on every click")

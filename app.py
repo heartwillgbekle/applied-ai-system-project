@@ -185,8 +185,15 @@ with tab_ai:
 
                 if result["sources"]:
                     with st.expander("Knowledge base sources used"):
-                        for src in result["sources"]:
-                            st.markdown(f"- `{src}`")
+                        for src, src_dir in zip(result["sources"], result.get("source_dirs", [])):
+                            st.markdown(f"- `{src}` — from `{src_dir}/`")
+
+                if result.get("steps"):
+                    with st.expander("Reasoning trace (intermediate steps)"):
+                        _icons = {"pass": "✅", "warn": "⚠️", "blocked": "🚫", "error": "❌"}
+                        for step in result["steps"]:
+                            icon = _icons.get(step["status"], "•")
+                            st.markdown(f"{icon} **{step['name']}** — {step['detail']}")
 
     st.divider()
     st.caption(
