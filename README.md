@@ -266,43 +266,7 @@ Testing AI pipelines means testing the contract (shape, types, error handling) s
 
 ---
 
-## Reflection
-
-Building this project changed the way I think about what it means to use AI responsibly in a real application. It is easy to wire up an API call and display whatever comes back. It is much harder to build a system that fails gracefully, tells the user when it is uncertain, and cannot be trivially manipulated into doing something it shouldn't.
-
-The self-critique step surprised me most. I expected it to always return high confidence — after all, Claude is reading its own output. But when I gave it genuinely ambiguous symptoms, the confidence scores dropped meaningfully and the caveats were honest. That taught me that self-evaluation in language models is more useful than I expected, and that the way you prompt for it matters enormously — a separate call produces better signal than a combined prompt.
-
-I also came to appreciate that guardrails are not just a safety checkbox. Writing the topic-relevance filter forced me to think carefully about what my system is actually for, and what it is not for. Every rejected input is a case I consciously decided to handle with a clear error message instead of an AI hallucination. That discipline — defining the boundaries of the system explicitly — is something I want to carry into every AI project I build in the future.
-
-If I were to extend this project further, the first thing I would add is a relevance threshold to the retriever so it can return "no match found" instead of always returning its best guess. Right now the system always retrieves three documents even when none of them closely match the query, which can mislead Claude into generating a confident-sounding but poorly-grounded diagnosis. I would also expand the knowledge base to cover Streamlit bugs beyond this one game, making the diagnostic scope genuinely broad rather than specific to the ten patterns I documented. A third improvement would be adding a feedback loop — a thumbs-up/thumbs-down button after each diagnosis — so real user ratings could accumulate and help identify which retrieval results and diagnoses are actually useful versus which are confidently wrong.
-
----
-
-## Responsible AI Reflection
-
-**What are the limitations or biases in your system?**
-
-The most significant limitation is that the knowledge base is hand-curated and closed. It contains exactly ten bug patterns drawn from one project, which means the AI will retrieve confidently — and often incorrectly — for bugs that don't map to any of those ten documents. The retriever always returns its best match even when nothing is genuinely relevant, so a symptom the corpus has never seen will still produce a diagnosis that sounds authoritative. That is a real risk. I partially address it through the confidence score and the human-review flag, but a user who doesn't notice the low badge could still act on a bad diagnosis.
-
-There is also a bias toward Streamlit-specific framing. Every document was written with Streamlit session state in mind, so symptoms described in different terms — even if they describe the same underlying bug — may retrieve the wrong document or score poorly. A user who writes "my variable resets" will score better than one who writes "my data disappears," even though they mean the same thing.
-
-**Could your AI be misused, and how would you prevent that?**
-
-The most realistic misuse is prompt injection — someone crafting a symptom description that attempts to override the system prompt or extract information it shouldn't reveal. I built two layers of defense against this: the input guardrails reject inputs containing phrases like "ignore previous instructions" or "ignore all prior" before they ever reach Claude, and the output guardrails scan the response for blocked patterns before it is displayed. Neither layer is foolproof, but together they make the most common injection patterns fail at the cheapest possible point in the pipeline — before any API call is made.
-
-A subtler misuse is over-reliance. Someone could treat a high-confidence diagnosis as ground truth and apply the suggested fix without reading the code. I try to counter this by always showing the knowledge base sources alongside the answer, so the user can read the reasoning behind the diagnosis rather than just following the instruction. Transparency about where the answer came from is itself a form of misuse prevention.
-
-**What surprised you while testing the AI's reliability?**
-
-I expected the self-critique confidence scores to be uniformly high — I assumed Claude would rate its own answers generously. In practice, when I gave it genuinely ambiguous or underspecified symptoms, the confidence scores dropped noticeably and the caveats were specific and honest rather than generic boilerplate. A vague input like "something weird happens sometimes" produced scores in the 40–50 range with caveats that explained exactly what information was missing. That was more useful behavior than I anticipated, and it made me trust the flagging system more than I did when I first designed it.
-
-I was also surprised by how brittle the self-critique JSON parsing was in early testing. A small change to the prompt wording — adding "respond in JSON" versus "respond with ONLY valid JSON" — changed whether Claude wrapped the output in a code fence. That kind of sensitivity to exact prompt wording is easy to underestimate, and it taught me to always write a fallback for any structured output I'm parsing from a language model.
-
-**Collaboration with AI during this project**
-
-I used Claude Code as my primary AI collaborator throughout the build. It wrote the first drafts of `retriever.py`, `guardrails.py`, and `agent.py`, and suggested the two-call self-critique architecture — separating diagnosis and confidence rating into sequential prompts rather than combining them. That suggestion turned out to be genuinely valuable. When I tested a combined prompt, confidence scores clustered around 85–90 regardless of input quality. The separate call produced a much wider range and caught low-quality diagnoses more reliably. I wouldn't have split them without the AI suggesting it.
-
-The one instance where the AI's suggestion was flawed: in the first version of `agent.py`, the self-critique prompt instructed Claude to respond with JSON "inside a code fence." The AI wrote the parser to strip the fence, but also added a condition that assumed the fence would always be present. When I changed the prompt wording slightly in testing and Claude stopped adding the fence, the parser silently returned the raw string instead of a number, and confidence defaulted to 50 every time without any warning. The bug was subtle because the fallback value was valid — nothing crashed — but every response was being flagged at the 50-confidence threshold. I caught it by noticing the badge color never changed across very different inputs. The fix was to make the code-fence stripping optional rather than assumed, and to log a warning whenever the fallback was triggered. The AI wrote code that handled its own intended output format, but not its actual output under slightly different conditions — a good reminder that AI-generated code needs the same skeptical review as any other code.
+> Reflections on AI collaboration, system limitations, biases, misuse prevention, and testing results are documented in [model_card.md](model_card.md).
 
 ---
 
