@@ -79,44 +79,65 @@ applied-ai-system-final/
 
 ---
 
-## How the AI Glitch Detective Works
+## System Architecture
 
+```mermaid
+flowchart TD
+    U([User]) -->|types bug symptom| GI
+
+    subgraph GUARDRAILS_IN ["Input Guardrails  (guardrails.py)"]
+        GI{Valid input?}
+    end
+
+    GI -->|blocked: off-topic /\ninjection / too long| ERR1([Error shown to user])
+    GI -->|passes| RET
+
+    subgraph RAG ["Retrieval  (retriever.py)"]
+        RET["TF-IDF cosine search\nover knowledge_base/bugs/\n(10 bug-pattern documents)"]
+        KB[("knowledge_base/\nbugs/*.md")]
+        KB --> RET
+    end
+
+    RET -->|top-3 matching docs| LLM1
+
+    subgraph AGENT ["Agentic Loop  (agent.py)"]
+        LLM1["Claude Haiku\n— diagnosis —\n(RAG context injected)"]
+        LLM1 --> GO
+        GO{Output safe?}
+        GO -->|blocked pattern\nin response| ERR2([Safety error shown])
+        GO -->|passes| LLM2
+        LLM2["Claude Haiku\n— self-critique —\nrates confidence 0–100"]
+    end
+
+    LLM2 -->|confidence + caveat| DISP
+
+    subgraph UI ["Streamlit UI  (app.py)"]
+        DISP["Display diagnosis\n+ colour-coded confidence badge\n+ knowledge base sources"]
+    end
+
+    DISP -->|confidence < 60| FLAG(["⚠ Flagged for\nhuman review"])
+    DISP -->|confidence ≥ 60| DONE([Result shown to user])
+
+    subgraph TESTS ["Reliability Tests  (tests/test_agent.py)"]
+        T1["Guardrail tests\n(acceptance + rejection)"]
+        T2["Retriever ranking tests\n(5 known bug symptoms)"]
+        T3["Agent contract tests\n(mocked Claude)"]
+        T4["Live API smoke test\n(skipped without key)"]
+    end
+
+    GUARDRAILS_IN -.->|pytest| T1
+    RAG -.->|pytest| T2
+    AGENT -.->|pytest| T3
+    AGENT -.->|pytest| T4
+
+    style GUARDRAILS_IN fill:#fef3c7,stroke:#d97706
+    style RAG fill:#dbeafe,stroke:#2563eb
+    style AGENT fill:#ede9fe,stroke:#7c3aed
+    style UI fill:#dcfce7,stroke:#16a34a
+    style TESTS fill:#f1f5f9,stroke:#64748b
 ```
-User describes a symptom
-        │
-        ▼
-┌─────────────────┐
-│   Guardrails    │  ← rejects off-topic, injections, blocked patterns
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Retriever     │  ← TF-IDF cosine search over knowledge_base/bugs/
-│  (top-3 docs)   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Claude Haiku   │  ← diagnosis using retrieved context (RAG)
-│  (diagnosis)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Guardrails    │  ← filters AI output before showing to user
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Claude Haiku   │  ← self-critique: rates own confidence 0-100
-│ (self-critique) │
-└────────┬────────┘
-         │
-         ▼
-  Display diagnosis
-  + confidence badge
-  + sources used
-```
+
+> **Tip:** GitHub renders this diagram automatically. To save it as a PNG, paste the code block into [mermaid.live](https://mermaid.live), export, and drop the file in `assets/`.
 
 ---
 
