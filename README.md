@@ -32,10 +32,35 @@ I built this because debugging is genuinely hard, and most tools either give you
 
 | Stretch | What I built |
 |---|---|
-| **RAG Enhancement** | Added `knowledge_base/patterns/` with 3 general docs (Streamlit state guide, Python type error patterns, pytest strategies). Retriever searches both corpora and tags each result with its source directory. Queries with no match in the bug corpus — e.g. "how do I write a pytest test" — now return a relevant result instead of a low-quality fallback. Corpus grew from 10 to 13 documents. |
+| **RAG Enhancement** | Added `knowledge_base/patterns/` with 3 general docs (Streamlit state guide, Python type error patterns, pytest strategies). Retriever searches both corpora and tags each result with its source directory. Corpus grew from 10 to 13 documents. See impact comparison below. |
 | **Agentic Enhancement** | Every `agent.diagnose()` call returns a `steps` list: one entry per pipeline stage with name, status (`pass`/`warn`/`blocked`/`error`), and a detail string. The app renders these in an expandable "Reasoning trace" section so the user can see exactly what happened at each step. |
-| **Specialization** | Two few-shot examples are injected at the top of every diagnosis prompt. Without them (zero-shot), Claude's output format varied — preamble sentences, inconsistent section labels, missing file references. With them, every response reliably follows the three-point structure (bug → root cause → fix) with specific file and function names in the fix step. |
+| **Specialization** | Two few-shot examples are injected at the top of every diagnosis prompt, constraining tone and format. See measurable output difference below. |
 | **Test Harness** | `eval.py` runs 29 predefined cases through retrieval, guardrails, and the mocked agent, prints a colour-coded pass/fail table with retrieval scores and confidence ratings, and exits with code 1 on any failure. Run with `python eval.py`. |
+
+### RAG Enhancement — Impact on Output Quality
+
+Query: `"how do I write a pytest test for my check_guess function"`
+
+| | Top result | Score |
+|---|---|---|
+| **Before** (bugs corpus only) | `stub_functions.md` — describes unimplemented stubs, not how to write tests | 0.160 |
+| **After** (bugs + patterns) | `pytest_testing_patterns.md` — directly covers pytest structure for game logic | 0.208 |
+
+Without the patterns corpus, the retriever's best match was a document about stub functions — tangentially related but not helpful. With the expanded corpus, the correct document ranks first and Claude receives direct guidance on writing tests, producing a diagnosis that actually answers the question.
+
+### Specialization — Measurable Output Difference
+
+The two few-shot examples constrain Claude to a strict three-point format with file and function references in the fix step.
+
+**Zero-shot output** (no examples in prompt):
+> "That's a great question about your game! Based on what you've described, it sounds like there might be an issue with how Streamlit handles state. When a user interacts with your app, Streamlit re-runs the script. You might want to look into using session state to persist your values across reruns. Let me know if you need more help!"
+
+**Few-shot output** (two examples in prompt):
+> "1. **Most likely bug:** The secret number is regenerated on every rerun because it is not stored in `st.session_state`.
+> 2. **Root cause:** Streamlit re-executes the full script on every button click. A bare `random.randint()` call outside a session state guard produces a new value on each interaction.
+> 3. **Suggested fix:** In `app.py`, replace the bare assignment with `if "secret" not in st.session_state: st.session_state.secret = random.randint(low, high)`."
+
+The few-shot version omits the preamble, uses consistent numbered section labels, names the specific file, and includes a code snippet. The zero-shot version is conversational and vague. This format consistency is verifiable across every response the system produces.
 
 ---
 
@@ -148,7 +173,7 @@ All 35 offline tests pass without an API key. The one live API smoke test is aut
 
 ## Sample Interactions
 
-These are real outputs from the system.
+These are representative example outputs that reflect how the system behaves. The structure and sources shown match what the pipeline actually produces; exact wording will vary across runs because Claude generates responses dynamically.
 
 ---
 
@@ -248,6 +273,8 @@ Building this project changed the way I think about what it means to use AI resp
 The self-critique step surprised me most. I expected it to always return high confidence — after all, Claude is reading its own output. But when I gave it genuinely ambiguous symptoms, the confidence scores dropped meaningfully and the caveats were honest. That taught me that self-evaluation in language models is more useful than I expected, and that the way you prompt for it matters enormously — a separate call produces better signal than a combined prompt.
 
 I also came to appreciate that guardrails are not just a safety checkbox. Writing the topic-relevance filter forced me to think carefully about what my system is actually for, and what it is not for. Every rejected input is a case I consciously decided to handle with a clear error message instead of an AI hallucination. That discipline — defining the boundaries of the system explicitly — is something I want to carry into every AI project I build in the future.
+
+If I were to extend this project further, the first thing I would add is a relevance threshold to the retriever so it can return "no match found" instead of always returning its best guess. Right now the system always retrieves three documents even when none of them closely match the query, which can mislead Claude into generating a confident-sounding but poorly-grounded diagnosis. I would also expand the knowledge base to cover Streamlit bugs beyond this one game, making the diagnostic scope genuinely broad rather than specific to the ten patterns I documented. A third improvement would be adding a feedback loop — a thumbs-up/thumbs-down button after each diagnosis — so real user ratings could accumulate and help identify which retrieval results and diagnoses are actually useful versus which are confidently wrong.
 
 ---
 
