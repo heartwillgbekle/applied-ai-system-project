@@ -18,6 +18,27 @@ I built this because debugging is genuinely hard, and most tools either give you
 
 ---
 
+## AI Features
+
+| Feature | How it's used |
+|---|---|
+| **RAG** | TF-IDF retriever searches a 13-document knowledge base (bugs + patterns) before Claude generates a diagnosis |
+| **Agentic loop** | 5-step pipeline with observable steps: validate → retrieve → diagnose → validate → self-critique |
+| **Self-critique** | Claude rates its own confidence (0–100) and adds a caveat when below 60 |
+| **Guardrails** | Input and output are validated for length, blocked patterns, prompt injection, and topic relevance |
+| **Reliability testing** | 35 pytest tests + standalone `eval.py` harness: 29 cases, colour-coded table, exit code |
+
+## Stretch Features (+8 pts)
+
+| Stretch | What I built |
+|---|---|
+| **RAG Enhancement** | Added `knowledge_base/patterns/` with 3 general docs (Streamlit state guide, Python type error patterns, pytest strategies). Retriever searches both corpora and tags each result with its source directory. Queries with no match in the bug corpus — e.g. "how do I write a pytest test" — now return a relevant result instead of a low-quality fallback. Corpus grew from 10 to 13 documents. |
+| **Agentic Enhancement** | Every `agent.diagnose()` call returns a `steps` list: one entry per pipeline stage with name, status (`pass`/`warn`/`blocked`/`error`), and a detail string. The app renders these in an expandable "Reasoning trace" section so the user can see exactly what happened at each step. |
+| **Specialization** | Two few-shot examples are injected at the top of every diagnosis prompt. Without them (zero-shot), Claude's output format varied — preamble sentences, inconsistent section labels, missing file references. With them, every response reliably follows the three-point structure (bug → root cause → fix) with specific file and function names in the fix step. |
+| **Test Harness** | `eval.py` runs 29 predefined cases through retrieval, guardrails, and the mocked agent, prints a colour-coded pass/fail table with retrieval scores and confidence ratings, and exits with code 1 on any failure. Run with `python eval.py`. |
+
+---
+
 ## Architecture Overview
 
 ![System architecture diagram](assets/system_architecture.png)
