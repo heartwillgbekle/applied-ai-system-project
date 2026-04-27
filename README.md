@@ -28,7 +28,7 @@ I built this because debugging is genuinely hard, and most tools either give you
 | **Guardrails** | Input and output are validated for length, blocked patterns, prompt injection, and topic relevance |
 | **Reliability testing** | 35 pytest tests + standalone `eval.py` harness: 29 cases, colour-coded table, exit code |
 
-## Stretch Features (+8 pts)
+## Stretch Features
 
 | Stretch | What I built |
 |---|---|
